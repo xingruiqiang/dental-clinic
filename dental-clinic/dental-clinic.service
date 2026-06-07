@@ -1,0 +1,15 @@
+[Unit]
+Description=口腔诊所轻量化管理系统
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/dental-clinic
+ExecStart=/usr/bin/python3 /opt/dental-clinic/app.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}诊疗记录详情{% endblock %}
+{% block page_title %}诊疗记录详情{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px;display:flex;gap:8px">
+  <a href="{{ url_for('treatments') }}" class="btn btn-sm btn-outline">← 返回列表</a>
+  <a href="{{ url_for('customer_detail', cid=treatment.customer_id) }}" class="btn btn-sm btn-outline">👤 患者档案</a>
+  <button class="btn btn-sm btn-primary" onclick="window.print()">🖨️ 打印</button>
+</div>
+
+{% set t = treatment %}
+<div id="print-area">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div>
+    <!-- 基础信息 -->
+    <div class="card">
+      <div class="card-header"><h2>📋 就诊信息</h2></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+        {% macro row(label, val) %}<div><span style="color:var(--text3)">{{ label }}：</span><span>{{ val or '-' }}</span></div>{% endmacro %}
+        {{ row('患者姓名', t.customer_name) }}
+        {{ row('手机号', t.customer_phone) }}
+        {{ row('就诊时间', t.visit_time[:10] if t.visit_time else '') }}
+        {{ row('就诊类型', t.visit_type) }}
+        {{ row('接诊医生', t.doctor_name) }}
+        {{ row('记录状态', '已完成' if t.status=='done' else '草稿') }}
+      </div>
+    </div>
+    <!-- 检查诊断 -->
+    <div class="card">
+      <div class="card-header"><h2>🔍 检查诊断</h2></div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+        {% macro sec(label, val) %}
+        {% if val %}
+        <div><div style="font-size:12px;color:var(--text3);margin-bottom:3px">{{ label }}</div><div style="background:#F5F7FA;padding:8px 12px;border-radius:6px;line-height:1.6">{{ val }}</div></div>
+        {% endif %}
+        {% endmacro %}
+        {{ sec('主诉', t.chief_complaint) }}
+        {{ sec('口腔检查结果', t.exam_result) }}
+        {{ sec('拍片结论', t.xray_result) }}
+        {{ sec('确诊病症', t.diagnosis) }}
+      </div>
+    </div>
+    <!-- 用药 -->
+    {% if t.drug_name %}
+    <div class="card">
+      <div class="card-header"><h2>💊 用药信息</h2></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+        <div><span style="color:var(--text3)">药品：</span>{{ t.drug_name }}</div>
+        <div><span style="color:var(--text3)">用量：</span>{{ t.drug_dosage or '-' }}</div>
+        <div><span style="color:var(--text3)">用法：</span>{{ t.drug_usage or '-' }}</div>
+        <div><span style="color:var(--text3)">周期：</span>{{ t.drug_period or '-' }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div>
+    <!-- 治疗信息 -->
+    <div class="card">
+      <div class="card-header"><h2>🦷 治疗信息</h2></div>
+      <div style="font-size:13px">
+        <div style="margin-bottom:8px">
+          <span style="color:var(--text3)">治疗项目：</span>
+          {% set items = t.treatment_items|from_json if t.treatment_items else [] %}
+          {% if items %}{% for i in items %}<span class="badge badge-success" style="margin-right:4px">{{ i }}</span>{% endfor %}
+          {% else %}-{% endif %}
+        </div>
+        <div style="margin-bottom:8px"><span style="color:var(--text3)">治疗部位：</span>{{ t.treatment_area or '-' }}</div>
+        {% if t.treatment_process %}
+        <div><div style="font-size:12px;color:var(--text3);margin-bottom:3px">治疗过程</div><div style="background:#F5F7FA;padding:8px 12px;border-radius:6px;line-height:1.6">{{ t.treatment_process }}</div></div>
+        {% endif %}
+      </div>
+    </div>
+    <!-- 费用 -->
+    <div class="card">
+      <div class="card-header"><h2>💰 费用信息</h2></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">
+        <div><div style="font-size:22px;font-weight:700;color:var(--primary)">¥{{ "%.0f"|format(t.total_fee or 0) }}</div><div style="font-size:12px;color:var(--text3)">总费用</div></div>
+        <div><div style="font-size:22px;font-weight:700;color:var(--success)">¥{{ "%.0f"|format(t.paid_fee or 0) }}</div><div style="font-size:12px;color:var(--text3)">已付</div></div>
+        <div><div style="font-size:22px;font-weight:700;color:{{ 'var(--danger)' if t.unpaid_fee and t.unpaid_fee > 0 else 'var(--text3)' }}">¥{{ "%.0f"|format(t.unpaid_fee or 0) }}</div><div style="font-size:12px;color:var(--text3)">欠费</div></div>
+      </div>
+    </div>
+    <!-- 医嘱 -->
+    <div class="card">
+      <div class="card-header"><h2>📝 医嘱与复诊</h2></div>
+      <div style="font-size:13px;display:flex;flex-direction:column;gap:8px">
+        {% if t.advice %}<div><div style="font-size:12px;color:var(--text3)">术后医嘱</div><div style="background:#F0FDF4;padding:8px 12px;border-radius:6px;line-height:1.6;border-left:3px solid var(--success)">{{ t.advice }}</div></div>{% endif %}
+        {% if t.contraindications %}<div><div style="font-size:12px;color:var(--text3)">禁忌事项</div><div style="background:#FFF8E1;padding:8px 12px;border-radius:6px;line-height:1.6;border-left:3px solid var(--warning)">{{ t.contraindications }}</div></div>{% endif %}
+        {% if t.next_visit_date %}<div><span style="color:var(--text3)">建议复诊：</span><span class="badge badge-info">{{ t.next_visit_date }}</span></div>{% endif %}
+        {% if t.next_exam_items %}<div><span style="color:var(--text3)">下次检查：</span>{{ t.next_exam_items }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 附件 -->
+<div class="card">
+  <div class="card-header">
+    <h2>📎 影像附件 <span class="badge badge-info">{{ files|length }}</span></h2>
+    <label class="btn btn-sm btn-outline" for="file-upload" style="cursor:pointer">📤 上传附件</label>
+    <input type="file" id="file-upload" style="display:none" accept="image/*,.pdf" onchange="uploadFile(this)" multiple>
+  </div>
+  <div id="files-grid" style="display:flex;flex-wrap:wrap;gap:10px">
+    {% for f in files %}
+    <div style="text-align:center;width:120px">
+      {% if f.file_type in ['jpg','jpeg','png','gif','bmp','webp'] %}
+      <a href="/uploads/{{ f.filename }}" target="_blank">
+        <img src="/uploads/{{ f.filename }}" style="width:120px;height:90px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">
+      </a>
+      {% else %}
+      <a href="/uploads/{{ f.filename }}" target="_blank" style="display:block;width:120px;height:90px;background:#F5F7FA;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:28px;border:1px solid var(--border)">📄</a>
+      {% endif %}
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.original_name }}</div>
+    </div>
+    {% endfor %}
+    <div id="upload-placeholder"></div>
+  </div>
+</div>
+</div><!-- end print-area -->
+
+<style>
+@media print{
+  .sidebar,.header,a.btn,.btn{display:none!important}
+  .main{margin-left:0}
+  .card{box-shadow:none;border:1px solid #E0E0E0}
+}
+</style>
+{% endblock %}
+{% block scripts %}
+<script>
+// 过滤器 from_json 在Jinja2没有，后端传递已处理
+async function uploadFile(input){
+  const files=[...input.files];
+  for(const file of files){
+    const fd=new FormData();fd.append('file',file);
+    toast(`上传 ${file.name}...`,'info');
+    const r=await fetch(`/api/treatments/{{ treatment.id }}/upload`,{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){
+      toast('上传成功','success');
+      const grid=document.getElementById('files-grid');
+      const div=document.createElement('div');
+      div.style.cssText='text-align:center;width:120px';
+      const ext=file.name.split('.').pop().toLowerCase();
+      if(['jpg','jpeg','png','gif','bmp','webp'].includes(ext)){
+        div.innerHTML=`<a href="/uploads/${d.filename}" target="_blank"><img src="/uploads/${d.filename}" style="width:120px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #E0E0E0"></a><div style="font-size:11px;color:#9E9E9E;margin-top:4px">${d.original_name}</div>`;
+      }else{
+        div.innerHTML=`<a href="/uploads/${d.filename}" target="_blank" style="display:flex;align-items:center;justify-content:center;width:120px;height:90px;background:#F5F7FA;border-radius:6px;font-size:28px;border:1px solid #E0E0E0">📄</a><div style="font-size:11px;color:#9E9E9E;margin-top:4px">${d.original_name}</div>`;
+      }
+      grid.insertBefore(div,document.getElementById('upload-placeholder'));
+    }else toast(d.msg,'error');
+  }
+  input.value='';
+}
+</script>
+{% endblock %}

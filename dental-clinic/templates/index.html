@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}工作台{% endblock %}
+{% block page_title %}工作台{% endblock %}
+{% block content %}
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#E3F2FD">👥</div>
+    <div class="stat-info">
+      <div class="val" style="color:var(--primary)">{{ stats.total_customers }}</div>
+      <div class="label">累计客户</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#E8F5E9">📋</div>
+    <div class="stat-info">
+      <div class="val" style="color:var(--success)">{{ stats.month_treatments }}</div>
+      <div class="label">本月接诊</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#FFF3E0">📞</div>
+    <div class="stat-info">
+      <div class="val" style="color:var(--warning)">{{ stats.pending_followups }}</div>
+      <div class="label">待回访</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#E8F5E9">💰</div>
+    <div class="stat-info">
+      <div class="val" style="color:var(--success)">¥{{ "%.0f"|format(stats.month_income) }}</div>
+      <div class="label">本月收入</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:#E3F2FD">🆕</div>
+    <div class="stat-info">
+      <div class="val" style="color:var(--primary)">{{ stats.month_new_customers }}</div>
+      <div class="label">本月新增客户</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <!-- 今日待回访 -->
+  <div class="card">
+    <div class="card-header">
+      <h2>📞 今日待回访 <span class="badge badge-warning">{{ today_followups|length }}</span></h2>
+      <a href="{{ url_for('followups') }}" class="btn btn-sm btn-outline">查看全部</a>
+    </div>
+    {% if today_followups %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>客户</th><th>手机</th><th>类型</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for f in today_followups %}
+        <tr>
+          <td><a href="{{ url_for('customer_detail', cid=f.customer_id) }}">{{ f.customer_name }}</a></td>
+          <td>{{ f.customer_phone }}</td>
+          <td><span class="badge badge-warning">{{ f.followup_type }}</span></td>
+          <td><button class="btn btn-sm btn-success" onclick="markFollowupDone({{ f.id }})">完成</button></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="icon">✅</div><p>今日无待回访记录</p></div>
+    {% endif %}
+  </div>
+  <!-- 近期复诊提醒 -->
+  <div class="card">
+    <div class="card-header">
+      <h2>🗓️ 近期复诊提醒 <span class="badge badge-info">{{ upcoming_next_visits|length }}</span></h2>
+    </div>
+    {% if upcoming_next_visits %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>客户</th><th>手机</th><th>建议复诊</th></tr></thead>
+        <tbody>
+        {% for t in upcoming_next_visits %}
+        <tr>
+          <td><a href="{{ url_for('customer_detail', cid=t.customer_id) }}">{{ t.customer_name }}</a></td>
+          <td>{{ t.customer_phone }}</td>
+          <td><span class="badge badge-info">{{ t.next_visit_date }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="icon">✅</div><p>近3天无复诊提醒</p></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 快捷操作 -->
+<div class="card" style="margin-top:4px">
+  <div class="card-header"><h2>⚡ 快捷操作</h2></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="window.location='{{ url_for('customers') }}#new'">➕ 新增客户</button>
+    <button class="btn btn-success" onclick="window.location='{{ url_for('treatments') }}#new'">📋 新增诊疗记录</button>
+    <button class="btn btn-warning" onclick="window.location='{{ url_for('followups') }}#new'">📞 创建回访</button>
+    <button class="btn btn-outline" onclick="window.location='{{ url_for('statistics') }}'">📊 查看统计</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function markFollowupDone(fid){
+  if(!confirm('确认已完成本次回访？')){return}
+  const r=await api(`/api/followups/${fid}`,'PUT',{status:'done',actual_date:new Date().toISOString().slice(0,10),result:'已完成回访'});
+  if(r.success){toast('回访已标记完成','success');setTimeout(()=>location.reload(),800)}
+  else toast(r.msg,'error');
+}
+</script>
+{% endblock %}

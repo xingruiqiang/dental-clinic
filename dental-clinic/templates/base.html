@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>{% block title %}口腔诊所管理系统{% endblock %}</title>
+<style>
+:root{
+  --primary:#1E88E5;--primary-dark:#1565C0;--primary-light:#E3F2FD;
+  --success:#43A047;--warning:#FB8C00;--danger:#E53935;--info:#00ACC1;
+  --bg:#F5F7FA;--card:#FFF;--border:#E0E0E0;--text:#212121;--text2:#616161;--text3:#9E9E9E;
+  --sidebar-w:220px;--header-h:56px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+a{color:var(--primary);text-decoration:none}
+/* ===== 布局 ===== */
+.layout{display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#1565C0 0%,#1E88E5 100%);
+  color:#fff;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;
+  transition:transform .3s}
+.sidebar-brand{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.15);
+  display:flex;align-items:center;gap:10px}
+.sidebar-brand .logo{width:32px;height:32px;background:rgba(255,255,255,.2);
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.sidebar-brand h1{font-size:14px;font-weight:700;line-height:1.3;color:#fff}
+.sidebar-nav{flex:1;overflow-y:auto;padding:12px 0}
+.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;
+  color:rgba(255,255,255,.85);transition:all .2s;border-left:3px solid transparent}
+.sidebar-nav a:hover,.sidebar-nav a.active{background:rgba(255,255,255,.15);
+  color:#fff;border-left-color:#fff}
+.sidebar-nav a span{font-size:16px}
+.sidebar-footer{padding:12px 20px;border-top:1px solid rgba(255,255,255,.15);font-size:12px;color:rgba(255,255,255,.7)}
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.header{height:var(--header-h);background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+  position:sticky;top:0;z-index:50}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-right{display:flex;align-items:center;gap:16px}
+.menu-toggle{display:none;background:none;border:none;cursor:pointer;font-size:20px;color:var(--text2)}
+.content{flex:1;padding:24px}
+/* ===== 通用组件 ===== */
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:20px;margin-bottom:20px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.card-header h2{font-size:16px;font-weight:600}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:500}
+.badge-primary{background:var(--primary-light);color:var(--primary)}
+.badge-success{background:#E8F5E9;color:var(--success)}
+.badge-warning{background:#FFF3E0;color:var(--warning)}
+.badge-danger{background:#FFEBEE;color:var(--danger)}
+.badge-info{background:#E0F7FA;color:var(--info)}
+/* ===== 按钮 ===== */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;
+  border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;white-space:nowrap}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+.btn-success{background:var(--success);color:#fff}.btn-success:hover{background:#388E3C}
+.btn-warning{background:var(--warning);color:#fff}.btn-warning:hover{background:#F57C00}
+.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#C62828}
+.btn-outline{background:#fff;color:var(--primary);border:1px solid var(--primary)}.btn-outline:hover{background:var(--primary-light)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-icon{padding:6px;border-radius:6px;background:none;border:none;cursor:pointer;color:var(--text2);font-size:15px;transition:all .2s}
+.btn-icon:hover{background:var(--bg);color:var(--primary)}
+/* ===== 表单 ===== */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:13px;color:var(--text2);margin-bottom:5px;font-weight:500}
+.form-label .req{color:var(--danger)}
+.form-control,.form-select{width:100%;padding:8px 12px;border:1px solid var(--border);
+  border-radius:6px;font-size:13px;color:var(--text);background:#fff;outline:none;transition:border .2s;
+  font-family:inherit}
+.form-control:focus,.form-select:focus{border-color:var(--primary)}
+textarea.form-control{resize:vertical;min-height:60px}
+.form-row{display:grid;gap:12px}
+.form-row.col2{grid-template-columns:1fr 1fr}
+.form-row.col3{grid-template-columns:1fr 1fr 1fr}
+/* ===== 表格 ===== */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+table th,table td{padding:10px 12px;text-align:left;font-size:13px;white-space:nowrap}
+table thead th{background:#F5F7FA;color:var(--text2);font-weight:600;border-bottom:2px solid var(--border)}
+table tbody tr{border-bottom:1px solid #F0F0F0;transition:background .2s}
+table tbody tr:hover{background:#FAFAFA}
+/* ===== 搜索栏 ===== */
+.search-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.search-bar .form-control{max-width:220px}
+/* ===== 分页 ===== */
+.pagination{display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:14px}
+.page-btn{padding:5px 10px;border:1px solid var(--border);background:#fff;border-radius:5px;
+  cursor:pointer;font-size:13px;transition:all .2s}
+.page-btn.active,.page-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* ===== 模态框 ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;
+  display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);
+  width:100%;max-width:680px;max-height:92vh;display:flex;flex-direction:column}
+.modal-lg{max-width:900px}
+.modal-sm{max-width:440px}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:15px;font-weight:600}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+/* ===== 标签 ===== */
+.tag-list{display:flex;flex-wrap:wrap;gap:6px}
+.tag{padding:2px 8px;background:var(--primary-light);color:var(--primary);border-radius:12px;
+  font-size:12px;cursor:pointer;border:1px solid transparent;transition:all .2s}
+.tag.selected{background:var(--primary);color:#fff}
+.tag:hover{border-color:var(--primary)}
+/* ===== 空状态 ===== */
+.empty{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty .icon{font-size:48px;margin-bottom:12px}
+/* ===== Toast通知 ===== */
+#toast-container{position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:8px;color:#fff;font-size:13px;
+  box-shadow:0 4px 12px rgba(0,0,0,.2);animation:slideIn .3s ease;min-width:220px;max-width:360px}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger)}
+.toast.info{background:var(--primary)}
+.toast.warning{background:var(--warning)}
+@keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+/* ===== 统计卡片 ===== */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.stat-card{background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;align-items:center;gap:14px}
+.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.stat-info .val{font-size:24px;font-weight:700}
+.stat-info .label{font-size:12px;color:var(--text3);margin-top:2px}
+/* ===== 段落分隔 ===== */
+.section-title{font-size:13px;font-weight:600;color:var(--text2);padding:8px 0 4px;
+  border-bottom:1px solid var(--border);margin-bottom:12px}
+/* ===== Loading ===== */
+.loading{display:flex;align-items:center;justify-content:center;padding:32px;color:var(--text3)}
+.spin{animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+/* ===== 响应式 ===== */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .menu-toggle{display:block}
+  .form-row.col2,.form-row.col3{grid-template-columns:1fr}
+  .search-bar .form-control{max-width:100%}
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .content{padding:16px}
+  table th,table td{padding:8px 10px}
+}
+@media(max-width:480px){
+  .stat-grid{grid-template-columns:1fr}
+  .modal{margin:8px;max-height:95vh}
+}
+</style>
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="layout">
+  <!-- 侧边栏 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo">🦷</div>
+      <h1>{{ settings.get('clinic_name','口腔诊所') }}<br><small style="font-size:11px;font-weight:400;opacity:.8">管理系统</small></h1>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('index') }}" class="{% if request.endpoint=='index' %}active{% endif %}">
+        <span>🏠</span> 工作台
+      </a>
+      <a href="{{ url_for('customers') }}" class="{% if request.endpoint in ['customers','customer_detail'] %}active{% endif %}">
+        <span>👥</span> 客户档案
+      </a>
+      <a href="{{ url_for('treatments') }}" class="{% if request.endpoint in ['treatments','treatment_detail'] %}active{% endif %}">
+        <span>📋</span> 诊疗记录
+      </a>
+      <a href="{{ url_for('followups') }}" class="{% if request.endpoint=='followups' %}active{% endif %}">
+        <span>📞</span> 回访跟进
+      </a>
+      <a href="{{ url_for('statistics') }}" class="{% if request.endpoint=='statistics' %}active{% endif %}">
+        <span>📊</span> 数据统计
+      </a>
+      {% if user and user.role=='admin' %}
+      <a href="{{ url_for('system') }}" class="{% if request.endpoint=='system' %}active{% endif %}">
+        <span>⚙️</span> 系统管理
+      </a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-footer">
+      👤 {{ user.real_name if user else '' }}
+      <span style="font-size:11px;opacity:.7">({{ '管理员' if user and user.role=='admin' else '医生' }})</span>
+    </div>
+  </aside>
+  <!-- 主内容 -->
+  <div class="main">
+    <header class="header">
+      <div class="header-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <span style="font-size:15px;font-weight:600;color:var(--text)">{% block page_title %}{% endblock %}</span>
+      </div>
+      <div class="header-right">
+        <span style="font-size:13px;color:var(--text2)" id="clock"></span>
+        <div style="position:relative">
+          <button class="btn btn-sm btn-outline" onclick="toggleUserMenu()">{{ user.real_name if user else '' }} ▾</button>
+          <div id="user-menu" style="display:none;position:absolute;right:0;top:36px;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);min-width:140px;z-index:200">
+            <a href="#" onclick="showChangePwd();return false" style="display:block;padding:10px 16px;color:var(--text);font-size:13px">修改密码</a>
+            <a href="{{ url_for('logout') }}" style="display:block;padding:10px 16px;color:var(--danger);font-size:13px">退出登录</a>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div style="background:{% if cat=='error' %}#FFEBEE{% else %}#E8F5E9{% endif %};color:{% if cat=='error' %}var(--danger){% else %}var(--success){% endif %};padding:10px 16px;border-radius:6px;margin-bottom:12px;font-size:13px">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<!-- 修改密码模态框 -->
+<div class="modal-overlay" id="modal-change-pwd">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>修改密码</h3><button class="btn-icon" onclick="closeModal('modal-change-pwd')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">原密码 <span class="req">*</span></label>
+        <input type="password" id="old-pwd" class="form-control" placeholder="请输入原密码">
+      </div>
+      <div class="form-group">
+        <label class="form-label">新密码 <span class="req">*</span></label>
+        <input type="password" id="new-pwd" class="form-control" placeholder="至少6位">
+      </div>
+      <div class="form-group">
+        <label class="form-label">确认新密码 <span class="req">*</span></label>
+        <input type="password" id="confirm-pwd" class="form-control" placeholder="再次输入新密码">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-change-pwd')">取消</button>
+      <button class="btn btn-primary" onclick="doChangePwd()">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<div id="sidebar-mask" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:99" onclick="toggleSidebar()"></div>
+
+<script>
+// 时钟
+function updateClock(){
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  document.getElementById('clock').textContent=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+updateClock(); setInterval(updateClock,30000);
+
+// Toast通知
+function toast(msg,type='info',duration=3000){
+  const c=document.getElementById('toast-container');
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;el.textContent=msg;
+  c.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .3s';setTimeout(()=>el.remove(),300)},duration);
+}
+
+// 侧边栏
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const mask=document.getElementById('sidebar-mask');
+  const open=sb.classList.toggle('open');
+  mask.style.display=open?'block':'none';
+}
+
+// 用户菜单
+function toggleUserMenu(){
+  const m=document.getElementById('user-menu');
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',e=>{
+  const m=document.getElementById('user-menu');
+  if(!e.target.closest('#user-menu')&&!e.target.closest('button[onclick*="toggleUserMenu"]'))
+    m.style.display='none';
+});
+
+// 模态框
+function openModal(id){document.getElementById(id).classList.add('show')}
+function closeModal(id){document.getElementById(id).classList.remove('show')}
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('show')});
+});
+
+function showChangePwd(){
+  document.getElementById('old-pwd').value='';
+  document.getElementById('new-pwd').value='';
+  document.getElementById('confirm-pwd').value='';
+  openModal('modal-change-pwd');
+}
+async function doChangePwd(){
+  const oldP=document.getElementById('old-pwd').value;
+  const newP=document.getElementById('new-pwd').value;
+  const cfP=document.getElementById('confirm-pwd').value;
+  if(!oldP||!newP||!cfP){toast('请填写完整','error');return}
+  if(newP!==cfP){toast('两次密码不一致','error');return}
+  const r=await fetch('/api/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:oldP,new_password:newP})});
+  const d=await r.json();
+  if(d.success){toast('密码修改成功','success');closeModal('modal-change-pwd')}
+  else toast(d.msg,'error');
+}
+
+// 通用API请求
+async function api(url,method='GET',body=null){
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  const r=await fetch(url,opts);
+  return r.json();
+}
+
+// 确认对话框
+function confirm2(msg){return confirm(msg)}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

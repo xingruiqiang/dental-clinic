@@ -1,0 +1,398 @@
+{% extends 'base.html' %}
+{% block title %}客户详情{% endblock %}
+{% block page_title %}客户档案详情{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px">
+  <a href="{{ url_for('customers') }}" class="btn btn-sm btn-outline">← 返回列表</a>
+</div>
+
+{% set c = customer %}
+<div style="display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start">
+  <!-- 左：客户信息卡 -->
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <h2>👤 基础信息</h2>
+        <button class="btn btn-sm btn-outline" onclick="editCustomerInfo()">✏️ 编辑</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <div style="width:52px;height:52px;background:var(--primary-light);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px">{{ '👨' if c.gender=='男' else '👩' }}</div>
+          <div>
+            <div style="font-size:18px;font-weight:700">{{ c.name }}</div>
+            <div style="color:var(--text3);margin-top:2px">{{ c.gender or '' }} {{ '· 出生'+c.birth_year|string+'年' if c.birth_year else '' }}</div>
+          </div>
+        </div>
+        {% macro info_row(label, val) %}
+        <div style="display:flex;gap:6px">
+          <span style="color:var(--text3);min-width:72px">{{ label }}：</span>
+          <span style="color:var(--text);flex:1">{{ val or '-' }}</span>
+        </div>
+        {% endmacro %}
+        {{ info_row('手机号', c.phone) }}
+        {{ info_row('微信号', c.wechat) }}
+        {{ info_row('地址', c.address) }}
+        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+        {{ info_row('口腔病史', c.dental_history) }}
+        {{ info_row('过敏史', c.allergy_history) }}
+        {{ info_row('全身病史', c.systemic_disease) }}
+        {{ info_row('牙齿情况', c.dental_condition) }}
+        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+        {{ info_row('首诊医生', c.doctor_name) }}
+        {{ info_row('建档时间', c.created_at[:10] if c.created_at else '') }}
+        {% set tags = c.tags|from_json if c.tags else [] %}
+        {% if tags %}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          {% for t in tags %}<span class="badge badge-primary">{{ t }}</span>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <!-- 快捷操作 -->
+    <div class="card">
+      <div class="card-header"><h2>⚡ 快捷操作</h2></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary" onclick="openNewTreatment()">📋 新增诊疗记录</button>
+        <button class="btn btn-warning" onclick="openNewFollowup()">📞 创建回访计划</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右：历史记录 -->
+  <div>
+    <!-- 诊疗记录 -->
+    <div class="card">
+      <div class="card-header">
+        <h2>📋 诊疗记录 <span class="badge badge-info">{{ treatments|length }}</span></h2>
+        <button class="btn btn-sm btn-primary" onclick="openNewTreatment()">➕ 新增</button>
+      </div>
+      {% if treatments %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>就诊时间</th><th>类型</th><th>接诊医生</th><th>主诉/诊断</th><th>费用</th><th>操作</th></tr></thead>
+          <tbody>
+          {% for t in treatments %}
+          <tr>
+            <td>{{ t.visit_time[:10] if t.visit_time else '-' }}</td>
+            <td><span class="badge badge-{{ 'primary' if t.visit_type=='初诊' else 'info' }}">{{ t.visit_type }}</span></td>
+            <td>{{ t.doctor_name or '-' }}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ t.chief_complaint or t.diagnosis or '-' }}</td>
+            <td>
+              <span style="color:var(--success)">¥{{ "%.0f"|format(t.paid_fee or 0) }}</span>
+              {% if t.unpaid_fee and t.unpaid_fee > 0 %}
+              <span style="color:var(--danger);font-size:11px"> (欠¥{{ "%.0f"|format(t.unpaid_fee) }})</span>
+              {% endif %}
+            </td>
+            <td><a href="{{ url_for('treatment_detail', tid=t.id) }}" class="btn btn-sm btn-outline">详情</a></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="icon">📋</div><p>暂无诊疗记录</p></div>
+      {% endif %}
+    </div>
+    <!-- 回访记录 -->
+    <div class="card">
+      <div class="card-header">
+        <h2>📞 回访记录 <span class="badge badge-warning">{{ followups|length }}</span></h2>
+      </div>
+      {% if followups %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>计划日期</th><th>类型</th><th>状态</th><th>回访结果</th></tr></thead>
+          <tbody>
+          {% for f in followups %}
+          <tr>
+            <td>{{ f.plan_date }}</td>
+            <td>{{ f.followup_type }}</td>
+            <td>
+              {% if f.status == 'done' %}<span class="badge badge-success">已完成</span>
+              {% elif f.status == 'pending' %}<span class="badge badge-warning">待回访</span>
+              {% else %}<span class="badge badge-info">{{ f.status }}</span>{% endif %}
+            </td>
+            <td>{{ f.result or '-' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="icon">📞</div><p>暂无回访记录</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 编辑客户信息（复用，弹出编辑模态框） -->
+<div class="modal-overlay" id="modal-edit-customer">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>编辑客户信息</h3><button class="btn-icon" onclick="closeModal('modal-edit-customer')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row col3">
+        <div class="form-group"><label class="form-label">姓名 <span class="req">*</span></label><input id="ec-name" class="form-control"></div>
+        <div class="form-group"><label class="form-label">性别</label>
+          <select id="ec-gender" class="form-select"><option value="">请选择</option><option value="男">男</option><option value="女">女</option></select></div>
+        <div class="form-group"><label class="form-label">出生年份</label><input id="ec-birth-year" type="number" class="form-control" min="1920" max="2020"></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label class="form-label">手机号 <span class="req">*</span></label><input id="ec-phone" class="form-control" type="tel"></div>
+        <div class="form-group"><label class="form-label">微信号</label><input id="ec-wechat" class="form-control"></div>
+      </div>
+      <div class="form-group"><label class="form-label">居住地址</label><input id="ec-address" class="form-control"></div>
+      <div class="form-row col2">
+        <div class="form-group"><label class="form-label">口腔病史</label><textarea id="ec-dental-history" class="form-control"></textarea></div>
+        <div class="form-group"><label class="form-label">药物过敏史</label><textarea id="ec-allergy-history" class="form-control"></textarea></div>
+      </div>
+      <div class="form-row col2">
+        <div class="form-group"><label class="form-label">全身病史</label><textarea id="ec-systemic-disease" class="form-control"></textarea></div>
+        <div class="form-group"><label class="form-label">牙齿基础情况</label><textarea id="ec-dental-condition" class="form-control"></textarea></div>
+      </div>
+      <div class="section-title">客户标签</div>
+      <div class="tag-list" id="ec-tags"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-edit-customer')">取消</button>
+      <button class="btn btn-primary" onclick="saveEditCustomer()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新增诊疗记录（内嵌） -->
+<div class="modal-overlay" id="modal-new-treatment">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>新增诊疗记录 - {{ c.name }}</h3><button class="btn-icon" onclick="closeModal('modal-new-treatment')">✕</button></div>
+    <div class="modal-body" id="treatment-form-body">
+      <!-- 动态加载 -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-treatment')">取消</button>
+      <button class="btn btn-primary" onclick="saveTreatment()">保存诊疗记录</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新增回访计划 -->
+<div class="modal-overlay" id="modal-new-followup">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>创建回访计划 - {{ c.name }}</h3><button class="btn-icon" onclick="closeModal('modal-new-followup')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">回访日期 <span class="req">*</span></label><input type="date" id="f-plan-date" class="form-control"></div>
+      <div class="form-group"><label class="form-label">回访类型</label>
+        <select id="f-type" class="form-select"><option value="术后回访">术后回访</option><option value="复诊提醒">复诊提醒</option><option value="常规问候">常规问候</option></select></div>
+      <div class="form-group"><label class="form-label">回访要点</label><textarea id="f-content" class="form-control" placeholder="回访重点内容/提醒事项"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-followup')">取消</button>
+      <button class="btn btn-primary" onclick="saveFollowup()">创建</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CUSTOMER_ID = {{ customer.id }};
+let ecTags = {{ customer.tags|safe or '[]' }};
+let allTags = [];
+
+// 加载标签
+async function loadAllTags(){
+  const r = await api('/api/dict/customer_tag');
+  allTags = r.data||[];
+  renderEcTags();
+}
+
+function renderEcTags(){
+  const wrap = document.getElementById('ec-tags');
+  wrap.innerHTML = '';
+  allTags.forEach(t=>{
+    const el = document.createElement('span');
+    el.className = 'tag' + (ecTags.includes(t.name)?' selected':'');
+    el.textContent = t.name;
+    el.onclick = ()=>{
+      if(ecTags.includes(t.name)) ecTags = ecTags.filter(x=>x!==t.name);
+      else ecTags.push(t.name);
+      renderEcTags();
+    };
+    wrap.appendChild(el);
+  });
+}
+
+function editCustomerInfo(){
+  document.getElementById('ec-name').value = {{ customer.name|tojson }};
+  document.getElementById('ec-gender').value = {{ (customer.gender or '')|tojson }};
+  document.getElementById('ec-birth-year').value = {{ customer.birth_year or '' }};
+  document.getElementById('ec-phone').value = {{ customer.phone|tojson }};
+  document.getElementById('ec-wechat').value = {{ (customer.wechat or '')|tojson }};
+  document.getElementById('ec-address').value = {{ (customer.address or '')|tojson }};
+  document.getElementById('ec-dental-history').value = {{ (customer.dental_history or '')|tojson }};
+  document.getElementById('ec-allergy-history').value = {{ (customer.allergy_history or '')|tojson }};
+  document.getElementById('ec-systemic-disease').value = {{ (customer.systemic_disease or '')|tojson }};
+  document.getElementById('ec-dental-condition').value = {{ (customer.dental_condition or '')|tojson }};
+  try{ ecTags = JSON.parse({{ customer.tags|tojson }})||[]; }catch(e){ ecTags=[]; }
+  renderEcTags();
+  openModal('modal-edit-customer');
+}
+
+async function saveEditCustomer(){
+  const name = document.getElementById('ec-name').value.trim();
+  const phone = document.getElementById('ec-phone').value.trim();
+  if(!name||!phone){toast('姓名和手机号不能为空','error');return}
+  const body = {
+    name, phone,
+    gender: document.getElementById('ec-gender').value,
+    birth_year: document.getElementById('ec-birth-year').value||null,
+    wechat: document.getElementById('ec-wechat').value.trim(),
+    address: document.getElementById('ec-address').value.trim(),
+    dental_history: document.getElementById('ec-dental-history').value.trim(),
+    allergy_history: document.getElementById('ec-allergy-history').value.trim(),
+    systemic_disease: document.getElementById('ec-systemic-disease').value.trim(),
+    dental_condition: document.getElementById('ec-dental-condition').value.trim(),
+    tags: ecTags
+  };
+  const r = await api(`/api/customers/${CUSTOMER_ID}`, 'PUT', body);
+  if(r.success){toast('保存成功','success');setTimeout(()=>location.reload(),700)}
+  else toast(r.msg,'error');
+}
+
+// 治疗记录
+let treatmentItems=[], doctors=[], visitTypes=[], treatmentItemsDict=[];
+async function openNewTreatment(){
+  // 加载字典
+  const [dr,vt,ti] = await Promise.all([api('/api/doctors'),api('/api/dict/visit_type'),api('/api/dict/treatment_item')]);
+  doctors=dr.data||[]; visitTypes=vt.data||[]; treatmentItemsDict=ti.data||[];
+  treatmentItems=[];
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('treatment-form-body').innerHTML=`
+    <div class="section-title">基础就诊信息</div>
+    <div class="form-row col3">
+      <div class="form-group"><label class="form-label">就诊时间 <span class="req">*</span></label>
+        <input type="date" id="t-visit-time" class="form-control" value="${today}"></div>
+      <div class="form-group"><label class="form-label">就诊类型</label>
+        <select id="t-visit-type" class="form-select">${visitTypes.map(v=>`<option>${v.name}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">接诊医生</label>
+        <select id="t-doctor" class="form-select">${doctors.map(d=>`<option value="${d.id}">${d.real_name}</option>`).join('')}</select></div>
+    </div>
+    <div class="section-title">检查诊断</div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">主诉</label><textarea id="t-chief-complaint" class="form-control" placeholder="患者主要症状描述"></textarea></div>
+      <div class="form-group"><label class="form-label">口腔检查结果</label><textarea id="t-exam-result" class="form-control" placeholder="检查结果"></textarea></div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">拍片结论</label><textarea id="t-xray-result" class="form-control" placeholder="拍片检查结论（无则留空）"></textarea></div>
+      <div class="form-group"><label class="form-label">确诊病症</label><textarea id="t-diagnosis" class="form-control" placeholder="确诊结果"></textarea></div>
+    </div>
+    <div class="section-title">治疗信息</div>
+    <div class="form-group">
+      <label class="form-label">治疗项目（可多选）</label>
+      <div class="tag-list" id="treatment-items-tags">
+        ${treatmentItemsDict.map(i=>`<span class="tag" onclick="toggleTreatItem('${i.name}',this)">${i.name}</span>`).join('')}
+      </div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">治疗部位</label><input id="t-treatment-area" class="form-control" placeholder="如：左下第一磨牙"></div>
+      <div class="form-group"><label class="form-label">治疗过程简述</label><textarea id="t-treatment-process" class="form-control" placeholder="治疗步骤简述"></textarea></div>
+    </div>
+    <div class="section-title">用药信息</div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">药品名称</label><input id="t-drug-name" class="form-control" placeholder="处方药品名称"></div>
+      <div class="form-group"><label class="form-label">用量</label><input id="t-drug-dosage" class="form-control" placeholder="如：每次2片"></div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">用法</label><input id="t-drug-usage" class="form-control" placeholder="如：口服"></div>
+      <div class="form-group"><label class="form-label">服用周期</label><input id="t-drug-period" class="form-control" placeholder="如：3天"></div>
+    </div>
+    <div class="section-title">费用</div>
+    <div class="form-row col3">
+      <div class="form-group"><label class="form-label">总费用(元)</label><input type="number" id="t-total-fee" class="form-control" placeholder="0" min="0" step="0.01" oninput="calcUnpaid()"></div>
+      <div class="form-group"><label class="form-label">已付(元)</label><input type="number" id="t-paid-fee" class="form-control" placeholder="0" min="0" step="0.01" oninput="calcUnpaid()"></div>
+      <div class="form-group"><label class="form-label">未付余额</label><input type="number" id="t-unpaid-fee" class="form-control" readonly style="background:#F5F5F5"></div>
+    </div>
+    <div class="section-title">医嘱与复诊</div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">术后医嘱</label><textarea id="t-advice" class="form-control" placeholder="护理叮嘱、注意事项"></textarea></div>
+      <div class="form-group"><label class="form-label">禁忌事项</label><textarea id="t-contraindications" class="form-control" placeholder="禁吃硬物、忌烟酒等"></textarea></div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">建议复诊日期</label><input type="date" id="t-next-visit-date" class="form-control"></div>
+      <div class="form-group"><label class="form-label">下次检查项目</label><input id="t-next-exam-items" class="form-control" placeholder="下次就诊需要做的检查"></div>
+    </div>
+  `;
+  openModal('modal-new-treatment');
+}
+
+function toggleTreatItem(name,el){
+  if(treatmentItems.includes(name)){
+    treatmentItems=treatmentItems.filter(x=>x!==name);el.classList.remove('selected');
+  }else{
+    treatmentItems.push(name);el.classList.add('selected');
+  }
+}
+
+function calcUnpaid(){
+  const tot=parseFloat(document.getElementById('t-total-fee').value)||0;
+  const paid=parseFloat(document.getElementById('t-paid-fee').value)||0;
+  document.getElementById('t-unpaid-fee').value=Math.max(0,tot-paid).toFixed(2);
+}
+
+async function saveTreatment(){
+  const visitTime=document.getElementById('t-visit-time').value;
+  if(!visitTime){toast('请填写就诊时间','error');return}
+  const body={
+    customer_id:CUSTOMER_ID,
+    visit_time:visitTime,
+    visit_type:document.getElementById('t-visit-type').value,
+    doctor_id:document.getElementById('t-doctor').value,
+    chief_complaint:document.getElementById('t-chief-complaint').value.trim(),
+    exam_result:document.getElementById('t-exam-result').value.trim(),
+    xray_result:document.getElementById('t-xray-result').value.trim(),
+    diagnosis:document.getElementById('t-diagnosis').value.trim(),
+    treatment_items:treatmentItems,
+    treatment_area:document.getElementById('t-treatment-area').value.trim(),
+    treatment_process:document.getElementById('t-treatment-process').value.trim(),
+    drug_name:document.getElementById('t-drug-name').value.trim(),
+    drug_dosage:document.getElementById('t-drug-dosage').value.trim(),
+    drug_usage:document.getElementById('t-drug-usage').value.trim(),
+    drug_period:document.getElementById('t-drug-period').value.trim(),
+    total_fee:document.getElementById('t-total-fee').value||0,
+    paid_fee:document.getElementById('t-paid-fee').value||0,
+    advice:document.getElementById('t-advice').value.trim(),
+    contraindications:document.getElementById('t-contraindications').value.trim(),
+    next_visit_date:document.getElementById('t-next-visit-date').value,
+    next_exam_items:document.getElementById('t-next-exam-items').value.trim(),
+    status:'done'
+  };
+  const r=await api('/api/treatments','POST',body);
+  if(r.success){
+    toast('诊疗记录保存成功','success');closeModal('modal-new-treatment');
+    setTimeout(()=>location.reload(),700);
+  }else toast(r.msg,'error');
+}
+
+// 回访
+function openNewFollowup(){
+  const today=new Date().toISOString().slice(0,10);
+  const d=new Date(today);d.setDate(d.getDate()+7);
+  document.getElementById('f-plan-date').value=d.toISOString().slice(0,10);
+  document.getElementById('f-content').value='';
+  openModal('modal-new-followup');
+}
+async function saveFollowup(){
+  const pd=document.getElementById('f-plan-date').value;
+  if(!pd){toast('请选择回访日期','error');return}
+  const r=await api('/api/followups','POST',{
+    customer_id:CUSTOMER_ID,
+    plan_date:pd,
+    followup_type:document.getElementById('f-type').value,
+    plan_content:document.getElementById('f-content').value.trim()
+  });
+  if(r.success){toast('回访计划已创建','success');closeModal('modal-new-followup');setTimeout(()=>location.reload(),700)}
+  else toast(r.msg,'error');
+}
+
+loadAllTags();
+if(location.hash==='#new-treatment')openNewTreatment();
+</script>
+{% endblock %}

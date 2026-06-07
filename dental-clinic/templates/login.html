@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>登录 - {{ settings.get('clinic_name','口腔诊所') }}管理系统</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(135deg,#1565C0 0%,#1E88E5 60%,#42A5F5 100%);
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  font-family:'PingFang SC','Microsoft YaHei',sans-serif}
+.login-box{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.2);
+  padding:40px;width:100%;max-width:400px;margin:16px}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .icon{font-size:48px;display:block;margin-bottom:10px}
+.login-logo h1{font-size:20px;font-weight:700;color:#1E88E5}
+.login-logo p{font-size:13px;color:#9E9E9E;margin-top:4px}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:13px;color:#616161;margin-bottom:6px;font-weight:500}
+.form-control{width:100%;padding:10px 14px;border:1px solid #E0E0E0;border-radius:8px;
+  font-size:14px;outline:none;transition:border .2s;font-family:inherit}
+.form-control:focus{border-color:#1E88E5}
+.btn-login{width:100%;padding:11px;background:#1E88E5;color:#fff;border:none;
+  border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s;margin-top:8px}
+.btn-login:hover{background:#1565C0}
+.error-msg{background:#FFEBEE;color:#E53935;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px}
+.hint{text-align:center;font-size:12px;color:#BDBDBD;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-logo">
+    <span class="icon">🦷</span>
+    <h1>{{ settings.get('clinic_name','口腔诊所') }}</h1>
+    <p>{{ settings.get('clinic_slogan','专业口腔 健康生活') }}</p>
+  </div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="error-msg">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  <form method="post">
+    <div class="form-group">
+      <label class="form-label">用户名</label>
+      <input type="text" name="username" class="form-control" placeholder="请输入用户名" autofocus required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">密码</label>
+      <input type="password" name="password" class="form-control" placeholder="请输入密码" required>
+    </div>
+    <button type="submit" class="btn-login">登 录</button>
+  </form>
+  <p class="hint">如忘记密码，请联系管理员重置</p>
+</div>
+</body>
+</html>

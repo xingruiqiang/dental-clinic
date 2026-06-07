@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+{% block title %}诊疗记录{% endblock %}
+{% block page_title %}诊疗记录管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2>诊疗记录列表</h2>
+    <div style="display:flex;gap:8px">
+      <a href="/api/treatments/export" class="btn btn-sm btn-outline">📥 导出Excel</a>
+      <button class="btn btn-sm btn-primary" onclick="openNewTreatmentPage()">➕ 新增记录</button>
+    </div>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="search-q" class="form-control" placeholder="🔍 客户姓名/手机/诊断">
+    <input type="date" id="date-from" class="form-control" style="max-width:160px">
+    <span style="align-self:center;color:var(--text3)">至</span>
+    <input type="date" id="date-to" class="form-control" style="max-width:160px">
+    <select id="search-doctor" class="form-select" style="max-width:140px">
+      <option value="">全部医生</option>
+    </select>
+    <button class="btn btn-outline btn-sm" onclick="loadTreatments()">搜索</button>
+    <button class="btn btn-sm" style="background:#F5F7FA;border:1px solid var(--border)" onclick="clearSearch()">清除</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>就诊时间</th><th>患者</th><th>手机</th><th>类型</th><th>接诊医生</th><th>诊断</th><th>治疗项目</th><th>费用</th><th>操作</th></tr>
+      </thead>
+      <tbody id="treatment-tbody">
+        <tr><td colspan="9" class="loading"><span class="spin">⏳</span>&nbsp;加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- 新增诊疗记录（需先选患者） -->
+<div class="modal-overlay" id="modal-new-treatment">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3>新增诊疗记录</h3><button class="btn-icon" onclick="closeModal('modal-new-treatment')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">选择患者 <span class="req">*</span></label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="patient-search" class="form-control" placeholder="输入姓名或手机号搜索" oninput="searchPatient()">
+          <span id="patient-selected" style="align-self:center;font-weight:600;color:var(--primary);white-space:nowrap"></span>
+        </div>
+        <div id="patient-dropdown" style="border:1px solid var(--border);border-radius:6px;max-height:160px;overflow-y:auto;display:none;margin-top:4px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.1)"></div>
+      </div>
+      <div id="treatment-form-fields" style="display:none">
+        <!-- 动态填充 -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-treatment')">取消</button>
+      <button class="btn btn-primary" id="save-treatment-btn" onclick="saveTreatment()" style="display:none">保存记录</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage=1, selectedCustomerId=null;
+let doctors=[], visitTypes=[], treatmentItemsDict=[], treatmentItems=[];
+
+async function initDicts(){
+  const [dr,vt,ti]=await Promise.all([api('/api/doctors'),api('/api/dict/visit_type'),api('/api/dict/treatment_item')]);
+  doctors=dr.data||[]; visitTypes=vt.data||[]; treatmentItemsDict=ti.data||[];
+  const sel=document.getElementById('search-doctor');
+  doctors.forEach(d=>{const op=new Option(d.real_name,d.id);sel.appendChild(op)});
+}
+
+async function loadTreatments(){
+  const q=document.getElementById('search-q').value.trim();
+  const df=document.getElementById('date-from').value;
+  const dt=document.getElementById('date-to').value;
+  const doc=document.getElementById('search-doctor').value;
+  const params=new URLSearchParams({q,date_from:df,date_to:dt,doctor_id:doc,page:currentPage,per_page:20});
+  const r=await api(`/api/treatments?${params}`);
+  const tbody=document.getElementById('treatment-tbody');
+  if(!r.data||r.data.length===0){
+    tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="icon">📋</div><p>暂无诊疗记录</p></div></td></tr>';
+    document.getElementById('pagination').innerHTML='';return;
+  }
+  tbody.innerHTML=r.data.map(t=>`
+    <tr>
+      <td>${(t.visit_time||'').slice(0,10)}</td>
+      <td><a href="/customers/${t.customer_id}" style="font-weight:500">${t.customer_name||''}</a></td>
+      <td>${t.customer_phone||''}</td>
+      <td><span class="badge badge-${t.visit_type==='初诊'?'primary':'info'}">${t.visit_type}</span></td>
+      <td>${t.doctor_name||''}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${t.diagnosis||'-'}</td>
+      <td>${(t.treatment_items||[]).slice(0,2).map(i=>`<span class="badge badge-success">${i}</span>`).join(' ')}</td>
+      <td><span style="color:var(--success)">¥${(t.paid_fee||0).toFixed(0)}</span>${t.unpaid_fee>0?`<span style="color:var(--danger);font-size:11px"> 欠¥${t.unpaid_fee.toFixed(0)}</span>`:''}</td>
+      <td><a href="/treatments/${t.id}" class="btn btn-sm btn-outline">详情</a></td>
+    </tr>
+  `).join('');
+  const totalPages=Math.ceil(r.total/20);
+  const pg=document.getElementById('pagination');pg.innerHTML='';
+  if(totalPages>1){
+    const info=document.createElement('span');info.style.cssText='font-size:12px;color:#9E9E9E';info.textContent=`共${r.total}条`;pg.appendChild(info);
+    for(let i=1;i<=Math.min(totalPages,8);i++){
+      const btn=document.createElement('button');btn.className='page-btn'+(i===currentPage?' active':'');
+      btn.textContent=i;btn.onclick=()=>{currentPage=i;loadTreatments()};pg.appendChild(btn);
+    }
+  }
+}
+
+function clearSearch(){
+  ['search-q','date-from','date-to'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('search-doctor').value='';
+  currentPage=1;loadTreatments();
+}
+
+// 新增诊疗
+let _patientTimer;
+function openNewTreatmentPage(){
+  selectedCustomerId=null;treatmentItems=[];
+  document.getElementById('patient-search').value='';
+  document.getElementById('patient-selected').textContent='';
+  document.getElementById('patient-dropdown').style.display='none';
+  document.getElementById('treatment-form-fields').style.display='none';
+  document.getElementById('save-treatment-btn').style.display='none';
+  openModal('modal-new-treatment');
+}
+
+function searchPatient(){
+  clearTimeout(_patientTimer);
+  _patientTimer=setTimeout(async()=>{
+    const q=document.getElementById('patient-search').value.trim();
+    if(!q){document.getElementById('patient-dropdown').style.display='none';return}
+    const r=await api(`/api/customers?q=${encodeURIComponent(q)}&per_page=8`);
+    const dd=document.getElementById('patient-dropdown');
+    if(!r.data||r.data.length===0){dd.style.display='none';return}
+    dd.innerHTML=r.data.map(c=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #F0F0F0" onclick="selectPatient(${c.id},'${c.name}','${c.phone}')" onmouseover="this.style.background='#F5F7FA'" onmouseout="this.style.background=''">${c.name} - ${c.phone}</div>`).join('');
+    dd.style.display='block';
+  },300);
+}
+
+function selectPatient(id,name,phone){
+  selectedCustomerId=id;
+  document.getElementById('patient-search').value=`${name} - ${phone}`;
+  document.getElementById('patient-selected').textContent='✅ 已选择';
+  document.getElementById('patient-dropdown').style.display='none';
+  renderTreatmentForm();
+}
+
+function renderTreatmentForm(){
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('treatment-form-fields').innerHTML=`
+    <div class="section-title">基础就诊信息</div>
+    <div class="form-row col3">
+      <div class="form-group"><label class="form-label">就诊时间 <span class="req">*</span></label><input type="date" id="t-visit-time" class="form-control" value="${today}"></div>
+      <div class="form-group"><label class="form-label">就诊类型</label>
+        <select id="t-visit-type" class="form-select">${visitTypes.map(v=>`<option>${v.name}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">接诊医生</label>
+        <select id="t-doctor" class="form-select">${doctors.map(d=>`<option value="${d.id}">${d.real_name}</option>`).join('')}</select></div>
+    </div>
+    <div class="section-title">检查诊断</div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">主诉</label><textarea id="t-chief-complaint" class="form-control" placeholder="主要症状"></textarea></div>
+      <div class="form-group"><label class="form-label">检查结果</label><textarea id="t-exam-result" class="form-control"></textarea></div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">拍片结论</label><textarea id="t-xray-result" class="form-control"></textarea></div>
+      <div class="form-group"><label class="form-label">确诊病症</label><textarea id="t-diagnosis" class="form-control"></textarea></div>
+    </div>
+    <div class="section-title">治疗信息</div>
+    <div class="form-group"><label class="form-label">治疗项目</label>
+      <div class="tag-list">${treatmentItemsDict.map(i=>`<span class="tag" onclick="toggleTreatItem('${i.name}',this)">${i.name}</span>`).join('')}</div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">治疗部位</label><input id="t-treatment-area" class="form-control" placeholder="如：左下6"></div>
+      <div class="form-group"><label class="form-label">治疗过程</label><textarea id="t-treatment-process" class="form-control"></textarea></div>
+    </div>
+    <div class="section-title">用药信息</div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">药品名称</label><input id="t-drug-name" class="form-control"></div>
+      <div class="form-group"><label class="form-label">用量</label><input id="t-drug-dosage" class="form-control"></div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">用法</label><input id="t-drug-usage" class="form-control"></div>
+      <div class="form-group"><label class="form-label">周期</label><input id="t-drug-period" class="form-control"></div>
+    </div>
+    <div class="section-title">费用</div>
+    <div class="form-row col3">
+      <div class="form-group"><label class="form-label">总费用</label><input type="number" id="t-total-fee" class="form-control" value="0" oninput="calcUnpaid()"></div>
+      <div class="form-group"><label class="form-label">已付</label><input type="number" id="t-paid-fee" class="form-control" value="0" oninput="calcUnpaid()"></div>
+      <div class="form-group"><label class="form-label">欠费</label><input type="number" id="t-unpaid-fee" class="form-control" readonly style="background:#F5F5F5" value="0"></div>
+    </div>
+    <div class="section-title">医嘱</div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">术后医嘱</label><textarea id="t-advice" class="form-control"></textarea></div>
+      <div class="form-group"><label class="form-label">禁忌事项</label><textarea id="t-contraindications" class="form-control"></textarea></div>
+    </div>
+    <div class="form-row col2">
+      <div class="form-group"><label class="form-label">建议复诊日期</label><input type="date" id="t-next-visit-date" class="form-control"></div>
+      <div class="form-group"><label class="form-label">下次检查项目</label><input id="t-next-exam-items" class="form-control"></div>
+    </div>
+  `;
+  document.getElementById('treatment-form-fields').style.display='block';
+  document.getElementById('save-treatment-btn').style.display='inline-flex';
+}
+
+function toggleTreatItem(name,el){
+  if(treatmentItems.includes(name)){treatmentItems=treatmentItems.filter(x=>x!==name);el.classList.remove('selected')}
+  else{treatmentItems.push(name);el.classList.add('selected')}
+}
+function calcUnpaid(){
+  const tot=parseFloat(document.getElementById('t-total-fee').value)||0;
+  const paid=parseFloat(document.getElementById('t-paid-fee').value)||0;
+  document.getElementById('t-unpaid-fee').value=Math.max(0,tot-paid).toFixed(2);
+}
+
+async function saveTreatment(){
+  if(!selectedCustomerId){toast('请先选择患者','error');return}
+  const body={
+    customer_id:selectedCustomerId,
+    visit_time:document.getElementById('t-visit-time').value,
+    visit_type:document.getElementById('t-visit-type').value,
+    doctor_id:document.getElementById('t-doctor').value,
+    chief_complaint:document.getElementById('t-chief-complaint').value.trim(),
+    exam_result:document.getElementById('t-exam-result').value.trim(),
+    xray_result:document.getElementById('t-xray-result').value.trim(),
+    diagnosis:document.getElementById('t-diagnosis').value.trim(),
+    treatment_items:treatmentItems,
+    treatment_area:document.getElementById('t-treatment-area').value.trim(),
+    treatment_process:document.getElementById('t-treatment-process').value.trim(),
+    drug_name:document.getElementById('t-drug-name').value.trim(),
+    drug_dosage:document.getElementById('t-drug-dosage').value.trim(),
+    drug_usage:document.getElementById('t-drug-usage').value.trim(),
+    drug_period:document.getElementById('t-drug-period').value.trim(),
+    total_fee:document.getElementById('t-total-fee').value||0,
+    paid_fee:document.getElementById('t-paid-fee').value||0,
+    advice:document.getElementById('t-advice').value.trim(),
+    contraindications:document.getElementById('t-contraindications').value.trim(),
+    next_visit_date:document.getElementById('t-next-visit-date').value,
+    next_exam_items:document.getElementById('t-next-exam-items').value.trim(),
+    status:'done'
+  };
+  const r=await api('/api/treatments','POST',body);
+  if(r.success){toast('记录保存成功','success');closeModal('modal-new-treatment');loadTreatments()}
+  else toast(r.msg,'error');
+}
+
+initDicts();loadTreatments();
+if(location.hash==='#new')openNewTreatmentPage();
+</script>
+{% endblock %}

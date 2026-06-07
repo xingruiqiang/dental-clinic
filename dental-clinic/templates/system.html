@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block title %}系统管理{% endblock %}
+{% block page_title %}系统管理{% endblock %}
+{% block content %}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <!-- 诊所基础设置 -->
+  <div class="card">
+    <div class="card-header"><h2>🏥 诊所基础设置</h2></div>
+    <div class="form-group"><label class="form-label">诊所名称</label><input id="s-clinic-name" class="form-control" value="{{ settings.get('clinic_name','') }}"></div>
+    <div class="form-group"><label class="form-label">联系电话</label><input id="s-clinic-phone" class="form-control" value="{{ settings.get('clinic_phone','') }}"></div>
+    <div class="form-group"><label class="form-label">诊所地址</label><input id="s-clinic-address" class="form-control" value="{{ settings.get('clinic_address','') }}"></div>
+    <div class="form-group"><label class="form-label">诊所标语</label><input id="s-clinic-slogan" class="form-control" value="{{ settings.get('clinic_slogan','') }}"></div>
+    <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+  </div>
+  <!-- 数据备份 -->
+  <div class="card">
+    <div class="card-header"><h2>💾 数据备份与安全</h2></div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">定期备份可防止数据丢失。点击下方按钮下载当前数据库文件备份。</p>
+    <a href="/api/backup" class="btn btn-success">📥 下载数据库备份</a>
+    <div style="margin-top:16px;padding:12px;background:#FFF3E0;border-radius:6px;font-size:13px;color:var(--warning)">
+      ⚠️ 建议每周备份一次数据，妥善保管备份文件。
+    </div>
+  </div>
+</div>
+
+<!-- 账号管理 -->
+<div class="card">
+  <div class="card-header">
+    <h2>👥 账号管理</h2>
+    <button class="btn btn-sm btn-primary" onclick="openNewUser()">➕ 新增账号</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+      <tbody id="users-tbody">
+        {% for u in users %}
+        <tr id="user-row-{{ u.id }}">
+          <td>{{ u.username }}</td>
+          <td>{{ u.real_name }}</td>
+          <td><span class="badge {{ 'badge-danger' if u.role=='admin' else 'badge-info' }}">{{ '管理员' if u.role=='admin' else '医生' }}</span></td>
+          <td><span class="badge {{ 'badge-success' if u.is_active else 'badge-warning' }}">{{ '正常' if u.is_active else '已禁用' }}</span></td>
+          <td>{{ (u.created_at or '')[:10] }}</td>
+          <td>
+            {% if u.username != 'admin' %}
+            <button class="btn-icon" onclick="editUser({{ u.id }},'{{ u.real_name }}','{{ u.role }}',{{ u.is_active }})">✏️</button>
+            {% else %}
+            <span style="font-size:12px;color:var(--text3)">超级管理员</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 数据字典管理 -->
+<div class="card">
+  <div class="card-header"><h2>📚 数据字典管理</h2></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+    {% for cat, label in [('treatment_item','治疗项目'),('disease','病症分类'),('drug','常用药品'),('customer_tag','客户标签'),('visit_type','就诊类型'),('followup_type','回访类型')] %}
+    <div style="border:1px solid var(--border);border-radius:8px;padding:14px">
+      <div style="font-weight:600;margin-bottom:10px;color:var(--primary)">{{ label }}</div>
+      <div id="dict-{{ cat }}" style="display:flex;flex-wrap:wrap;gap:6px;min-height:40px"></div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <input type="text" id="dict-input-{{ cat }}" class="form-control" placeholder="新增..." style="flex:1">
+        <button class="btn btn-sm btn-primary" onclick="addDictItem('{{ cat }}')">添加</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- 新增/编辑账号 -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3 id="modal-user-title">新增账号</h3><button class="btn-icon" onclick="closeModal('modal-user')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">用户名 <span class="req">*</span></label><input id="u-username" class="form-control" placeholder="登录用户名"></div>
+      <div class="form-group"><label class="form-label">姓名 <span class="req">*</span></label><input id="u-realname" class="form-control" placeholder="真实姓名"></div>
+      <div class="form-group"><label class="form-label">密码 <span id="u-pwd-req" class="req">*</span></label><input type="password" id="u-password" class="form-control" placeholder="登录密码（至少6位）"><span id="u-pwd-hint" style="font-size:11px;color:var(--text3)"></span></div>
+      <div class="form-group"><label class="form-label">角色</label>
+        <select id="u-role" class="form-select"><option value="doctor">医生（普通）</option><option value="admin">管理员</option></select></div>
+      <div class="form-group" id="u-active-wrap" style="display:none">
+        <label class="form-label"><input type="checkbox" id="u-active"> 账号启用</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-user')">取消</button>
+      <button class="btn btn-primary" onclick="saveUser()">保存</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingUserId=null;
+
+async function saveSettings(){
+  const r=await api('/api/settings','POST',{
+    clinic_name:document.getElementById('s-clinic-name').value.trim(),
+    clinic_phone:document.getElementById('s-clinic-phone').value.trim(),
+    clinic_address:document.getElementById('s-clinic-address').value.trim(),
+    clinic_slogan:document.getElementById('s-clinic-slogan').value.trim()
+  });
+  if(r.success)toast('设置已保存','success');
+  else toast(r.msg,'error');
+}
+
+// 账号
+function openNewUser(){
+  editingUserId=null;
+  document.getElementById('modal-user-title').textContent='新增账号';
+  document.getElementById('u-username').value='';document.getElementById('u-username').disabled=false;
+  document.getElementById('u-realname').value='';
+  document.getElementById('u-password').value='';
+  document.getElementById('u-role').value='doctor';
+  document.getElementById('u-active-wrap').style.display='none';
+  document.getElementById('u-pwd-req').style.display='inline';
+  document.getElementById('u-pwd-hint').textContent='';
+  openModal('modal-user');
+}
+
+function editUser(id,realName,role,isActive){
+  editingUserId=id;
+  document.getElementById('modal-user-title').textContent='编辑账号';
+  document.getElementById('u-username').value='';document.getElementById('u-username').disabled=true;
+  document.getElementById('u-realname').value=realName;
+  document.getElementById('u-password').value='';
+  document.getElementById('u-role').value=role;
+  document.getElementById('u-active').checked=isActive===1;
+  document.getElementById('u-active-wrap').style.display='block';
+  document.getElementById('u-pwd-req').style.display='none';
+  document.getElementById('u-pwd-hint').textContent='不填则不修改密码';
+  openModal('modal-user');
+}
+
+async function saveUser(){
+  const realName=document.getElementById('u-realname').value.trim();
+  const pwd=document.getElementById('u-password').value;
+  if(!realName){toast('请填写姓名','error');return}
+  if(!editingUserId&&!pwd){toast('请填写密码','error');return}
+  if(pwd&&pwd.length<6){toast('密码至少6位','error');return}
+  let body={real_name:realName,role:document.getElementById('u-role').value};
+  if(pwd)body.password=pwd;
+  if(!editingUserId){
+    const uname=document.getElementById('u-username').value.trim();
+    if(!uname){toast('请填写用户名','error');return}
+    body.username=uname;
+    const r=await api('/api/users','POST',body);
+    if(r.success){toast('账号创建成功','success');closeModal('modal-user');setTimeout(()=>location.reload(),700)}
+    else toast(r.msg,'error');
+  }else{
+    body.is_active=document.getElementById('u-active').checked;
+    const r=await api(`/api/users/${editingUserId}`,'PUT',body);
+    if(r.success){toast('更新成功','success');closeModal('modal-user');setTimeout(()=>location.reload(),700)}
+    else toast(r.msg,'error');
+  }
+}
+
+// 数据字典
+const dictCats=['treatment_item','disease','drug','customer_tag','visit_type','followup_type'];
+async function loadDicts(){
+  for(const cat of dictCats){
+    const r=await api(`/api/dict/${cat}`);
+    const wrap=document.getElementById(`dict-${cat}`);
+    wrap.innerHTML=(r.data||[]).map(d=>`
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--primary-light);color:var(--primary);border-radius:12px;font-size:12px">
+        ${d.name}
+        <button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:12px;padding:0;line-height:1" onclick="deleteDictItem(${d.id},'${cat}')">×</button>
+      </span>
+    `).join('');
+  }
+}
+
+async function addDictItem(cat){
+  const input=document.getElementById(`dict-input-${cat}`);
+  const name=input.value.trim();
+  if(!name){toast('请输入内容','error');return}
+  const r=await api('/api/dict','POST',{category:cat,name});
+  if(r.success){toast('添加成功','success');input.value='';loadDicts()}
+  else toast(r.msg,'error');
+}
+
+async function deleteDictItem(did,cat){
+  if(!confirm('确认删除该字典项？')){return}
+  const r=await api(`/api/dict/${did}`,'DELETE');
+  if(r.success){loadDicts()}
+  else toast(r.msg,'error');
+}
+
+loadDicts();
+</script>
+{% endblock %}

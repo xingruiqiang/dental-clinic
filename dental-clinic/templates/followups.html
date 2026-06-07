@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block title %}回访跟进{% endblock %}
+{% block page_title %}回访跟进{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2>回访计划管理</h2>
+    <button class="btn btn-sm btn-primary" onclick="openNewFollowup()">➕ 创建回访计划</button>
+  </div>
+  <!-- 筛选栏 -->
+  <div class="search-bar">
+    <select id="filter-status" class="form-select" style="max-width:140px" onchange="loadFollowups()">
+      <option value="">全部状态</option>
+      <option value="pending" selected>待回访</option>
+      <option value="done">已完成</option>
+    </select>
+    <input type="date" id="filter-from" class="form-control" style="max-width:160px">
+    <span style="align-self:center;color:var(--text3)">至</span>
+    <input type="date" id="filter-to" class="form-control" style="max-width:160px">
+    <button class="btn btn-outline btn-sm" onclick="loadFollowups()">筛选</button>
+    <button class="btn btn-sm" style="background:#F5F7FA;border:1px solid var(--border)" onclick="clearFilter()">清除</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>患者</th><th>手机</th><th>计划日期</th><th>类型</th><th>回访要点</th><th>状态</th><th>操作</th></tr>
+      </thead>
+      <tbody id="followup-tbody">
+        <tr><td colspan="7" class="loading"><span class="spin">⏳</span>&nbsp;加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+
+<!-- 创建回访计划 -->
+<div class="modal-overlay" id="modal-new-followup">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>创建回访计划</h3><button class="btn-icon" onclick="closeModal('modal-new-followup')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">选择患者 <span class="req">*</span></label>
+        <input type="text" id="fp-patient-search" class="form-control" placeholder="输入姓名/手机搜索" oninput="searchFpPatient()">
+        <div id="fp-patient-dropdown" style="border:1px solid var(--border);border-radius:6px;max-height:160px;overflow-y:auto;display:none;margin-top:4px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.1)"></div>
+        <div id="fp-patient-selected" style="font-size:13px;color:var(--primary);margin-top:4px;font-weight:500"></div>
+      </div>
+      <div class="form-group"><label class="form-label">回访日期 <span class="req">*</span></label><input type="date" id="fp-plan-date" class="form-control"></div>
+      <div class="form-group"><label class="form-label">回访类型</label>
+        <select id="fp-type" class="form-select">
+          <option value="术后回访">术后回访</option>
+          <option value="复诊提醒">复诊提醒</option>
+          <option value="常规问候">常规问候</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">回访要点</label><textarea id="fp-content" class="form-control" placeholder="回访重点内容/注意事项"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-followup')">取消</button>
+      <button class="btn btn-primary" onclick="saveFollowup()">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 完成回访 -->
+<div class="modal-overlay" id="modal-done-followup">
+  <div class="modal modal-sm">
+    <div class="modal-header"><h3>完成回访记录</h3><button class="btn-icon" onclick="closeModal('modal-done-followup')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">实际回访日期</label><input type="date" id="done-actual-date" class="form-control"></div>
+      <div class="form-group"><label class="form-label">回访结果</label><textarea id="done-result" class="form-control" placeholder="患者反馈、沟通结果"></textarea></div>
+      <div class="form-group"><label class="form-label">恢复情况</label><textarea id="done-recovery" class="form-control" placeholder="恢复情况描述"></textarea></div>
+      <div class="form-group">
+        <label class="form-label">
+          <input type="checkbox" id="done-next-appointment"> 已预约下次就诊
+        </label>
+      </div>
+      <div class="form-group"><label class="form-label">后续跟进需求</label><textarea id="done-next-needs" class="form-control" placeholder="后续需要跟进的事项"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-done-followup')">取消</button>
+      <button class="btn btn-success" onclick="confirmDoneFollowup()">确认完成</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage=1, fpPatientId=null, doneFollowupId=null;
+
+async function loadFollowups(){
+  const status=document.getElementById('filter-status').value;
+  const from=document.getElementById('filter-from').value;
+  const to=document.getElementById('filter-to').value;
+  const params=new URLSearchParams({status,date_from:from,date_to:to,page:currentPage,per_page:20});
+  const r=await api(`/api/followups?${params}`);
+  const tbody=document.getElementById('followup-tbody');
+  if(!r.data||r.data.length===0){
+    tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="icon">📞</div><p>暂无回访记录</p></div></td></tr>';
+    document.getElementById('pagination').innerHTML='';return;
+  }
+  tbody.innerHTML=r.data.map(f=>`
+    <tr>
+      <td><a href="/customers/${f.customer_id}">${f.customer_name||''}</a></td>
+      <td>${f.customer_phone||''}</td>
+      <td>${f.plan_date}</td>
+      <td><span class="badge badge-warning">${f.followup_type}</span></td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${f.plan_content||'-'}</td>
+      <td>${f.status==='done'?'<span class="badge badge-success">已完成</span>':'<span class="badge badge-warning">待回访</span>'}</td>
+      <td>
+        ${f.status==='pending'?`<button class="btn btn-sm btn-success" onclick="openDoneFollowup(${f.id})">完成</button>`:'<span style="color:var(--text3);font-size:12px">'+f.actual_date+'</span>'}
+      </td>
+    </tr>
+  `).join('');
+  const totalPages=Math.ceil(r.total/20);
+  const pg=document.getElementById('pagination');pg.innerHTML='';
+  if(totalPages>1){
+    const info=document.createElement('span');info.style.cssText='font-size:12px;color:#9E9E9E';info.textContent=`共${r.total}条`;pg.appendChild(info);
+    for(let i=1;i<=Math.min(totalPages,8);i++){
+      const btn=document.createElement('button');btn.className='page-btn'+(i===currentPage?' active':'');
+      btn.textContent=i;btn.onclick=()=>{currentPage=i;loadFollowups()};pg.appendChild(btn);
+    }
+  }
+}
+
+function clearFilter(){
+  document.getElementById('filter-from').value='';
+  document.getElementById('filter-to').value='';
+  document.getElementById('filter-status').value='pending';
+  currentPage=1;loadFollowups();
+}
+
+// 新增回访
+function openNewFollowup(){
+  fpPatientId=null;
+  document.getElementById('fp-patient-search').value='';
+  document.getElementById('fp-patient-selected').textContent='';
+  document.getElementById('fp-patient-dropdown').style.display='none';
+  const d=new Date();d.setDate(d.getDate()+7);
+  document.getElementById('fp-plan-date').value=d.toISOString().slice(0,10);
+  document.getElementById('fp-content').value='';
+  openModal('modal-new-followup');
+}
+
+let _fpTimer;
+function searchFpPatient(){
+  clearTimeout(_fpTimer);
+  _fpTimer=setTimeout(async()=>{
+    const q=document.getElementById('fp-patient-search').value.trim();
+    if(!q){document.getElementById('fp-patient-dropdown').style.display='none';return}
+    const r=await api(`/api/customers?q=${encodeURIComponent(q)}&per_page=8`);
+    const dd=document.getElementById('fp-patient-dropdown');
+    if(!r.data||r.data.length===0){dd.style.display='none';return}
+    dd.innerHTML=r.data.map(c=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #F0F0F0" onclick="selectFpPatient(${c.id},'${c.name}','${c.phone}')" onmouseover="this.style.background='#F5F7FA'" onmouseout="this.style.background=''">${c.name} - ${c.phone}</div>`).join('');
+    dd.style.display='block';
+  },300);
+}
+
+function selectFpPatient(id,name,phone){
+  fpPatientId=id;
+  document.getElementById('fp-patient-search').value=`${name} - ${phone}`;
+  document.getElementById('fp-patient-selected').textContent='✅ 已选择';
+  document.getElementById('fp-patient-dropdown').style.display='none';
+}
+
+async function saveFollowup(){
+  if(!fpPatientId){toast('请选择患者','error');return}
+  const pd=document.getElementById('fp-plan-date').value;
+  if(!pd){toast('请选择回访日期','error');return}
+  const r=await api('/api/followups','POST',{
+    customer_id:fpPatientId,
+    plan_date:pd,
+    followup_type:document.getElementById('fp-type').value,
+    plan_content:document.getElementById('fp-content').value.trim()
+  });
+  if(r.success){toast('回访计划创建成功','success');closeModal('modal-new-followup');loadFollowups()}
+  else toast(r.msg,'error');
+}
+
+// 完成回访
+function openDoneFollowup(fid){
+  doneFollowupId=fid;
+  document.getElementById('done-actual-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('done-result').value='';
+  document.getElementById('done-recovery').value='';
+  document.getElementById('done-next-appointment').checked=false;
+  document.getElementById('done-next-needs').value='';
+  openModal('modal-done-followup');
+}
+
+async function confirmDoneFollowup(){
+  const r=await api(`/api/followups/${doneFollowupId}`,'PUT',{
+    status:'done',
+    actual_date:document.getElementById('done-actual-date').value,
+    result:document.getElementById('done-result').value.trim(),
+    recovery:document.getElementById('done-recovery').value.trim(),
+    next_appointment:document.getElementById('done-next-appointment').checked,
+    next_followup_needs:document.getElementById('done-next-needs').value.trim()
+  });
+  if(r.success){toast('回访完成','success');closeModal('modal-done-followup');loadFollowups()}
+  else toast(r.msg,'error');
+}
+
+loadFollowups();
+if(location.hash==='#new')openNewFollowup();
+</script>
+{% endblock %}

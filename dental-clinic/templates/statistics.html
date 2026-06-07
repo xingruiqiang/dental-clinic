@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}数据统计{% endblock %}
+{% block page_title %}数据统计{% endblock %}
+{% block content %}
+<!-- 统计概览卡片 -->
+<div class="stat-grid" id="stat-grid">
+  <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD">👥</div><div class="stat-info"><div class="val" id="s-total-customers">-</div><div class="label">累计客户</div></div></div>
+  <div class="stat-card"><div class="stat-icon" style="background:#E8F5E9">📋</div><div class="stat-info"><div class="val" id="s-total-treatments">-</div><div class="label">累计接诊</div></div></div>
+  <div class="stat-card"><div class="stat-icon" style="background:#E3F2FD">🆕</div><div class="stat-info"><div class="val" id="s-month-new">-</div><div class="label">本月新增客户</div></div></div>
+  <div class="stat-card"><div class="stat-icon" style="background:#E8F5E9">📅</div><div class="stat-info"><div class="val" id="s-month-treat">-</div><div class="label">本月接诊</div></div></div>
+  <div class="stat-card"><div class="stat-icon" style="background:#FFF3E0">💰</div><div class="stat-info"><div class="val" id="s-month-income">-</div><div class="label">本月收入(元)</div></div></div>
+  <div class="stat-card"><div class="stat-icon" style="background:#FFF3E0">📞</div><div class="stat-info"><div class="val" id="s-pending-followup">-</div><div class="label">待回访</div></div></div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <!-- 月度接诊趋势 -->
+  <div class="card">
+    <div class="card-header"><h2>📈 月度接诊趋势（本年）</h2></div>
+    <canvas id="chart-monthly" height="200"></canvas>
+  </div>
+  <!-- 治疗项目TOP -->
+  <div class="card">
+    <div class="card-header"><h2>🦷 治疗项目统计（本年TOP10）</h2></div>
+    <canvas id="chart-items" height="200"></canvas>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px">
+  <!-- 就诊类型 -->
+  <div class="card">
+    <div class="card-header"><h2>📊 本月就诊类型分布</h2></div>
+    <canvas id="chart-visit-types" height="200"></canvas>
+  </div>
+  <!-- 月收入趋势 -->
+  <div class="card">
+    <div class="card-header"><h2>💰 月度收入趋势（本年）</h2></div>
+    <canvas id="chart-income" height="200"></canvas>
+  </div>
+</div>
+
+<!-- Chart.js CDN（轻量） -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block scripts %}
+<script>
+const COLORS=['#1E88E5','#43A047','#FB8C00','#E53935','#00ACC1','#8E24AA','#FF6F00','#558B2F','#1565C0','#00695C'];
+
+async function loadStats(){
+  const r=await api('/api/statistics/overview');
+  if(!r.success){toast('加载统计数据失败','error');return}
+  const d=r.data;
+  document.getElementById('s-total-customers').textContent=d.total_customers;
+  document.getElementById('s-total-treatments').textContent=d.total_treatments;
+  document.getElementById('s-month-new').textContent=d.month_new_customers;
+  document.getElementById('s-month-treat').textContent=d.month_treatments;
+  document.getElementById('s-month-income').textContent='¥'+(d.month_income||0).toFixed(0);
+  document.getElementById('s-pending-followup').textContent=d.pending_followups;
+
+  // 月度接诊
+  const ml=d.monthly_trend||[];
+  new Chart(document.getElementById('chart-monthly'),{
+    type:'bar',
+    data:{
+      labels:ml.map(m=>m.month),
+      datasets:[{label:'接诊人次',data:ml.map(m=>m.cnt),backgroundColor:'#1E88E5',borderRadius:4}]
+    },
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+  });
+
+  // 月度收入
+  new Chart(document.getElementById('chart-income'),{
+    type:'line',
+    data:{
+      labels:ml.map(m=>m.month),
+      datasets:[{label:'月收入(元)',data:ml.map(m=>m.income),borderColor:'#43A047',backgroundColor:'rgba(67,160,71,.1)',tension:.3,fill:true,pointRadius:4}]
+    },
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+  });
+
+  // 治疗项目
+  const items=d.top_items||[];
+  new Chart(document.getElementById('chart-items'),{
+    type:'bar',
+    data:{
+      labels:items.map(i=>i.name),
+      datasets:[{label:'次数',data:items.map(i=>i.count),backgroundColor:COLORS,borderRadius:4}]
+    },
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}
+  });
+
+  // 就诊类型
+  const vts=d.visit_types||[];
+  new Chart(document.getElementById('chart-visit-types'),{
+    type:'doughnut',
+    data:{
+      labels:vts.map(v=>v.visit_type),
+      datasets:[{data:vts.map(v=>v.cnt),backgroundColor:COLORS,borderWidth:2,borderColor:'#fff'}]
+    },
+    options:{responsive:true,plugins:{legend:{position:'right'}}}
+  });
+}
+
+loadStats();
+</script>
+{% endblock %}
